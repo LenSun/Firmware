@@ -482,7 +482,7 @@ then
 			then
 				set MAVLINK_F "-r 1200 -d /dev/ttyS1"
 				# Start MAVLink on Wifi (ESP8266 port)
-				mavlink start -r 20000 -m config -b 921600 -d /dev/ttyS0
+				# mavlink start -r 20000 -m config -b 921600 -d /dev/ttyS0
 			fi
 		fi
 	fi
@@ -504,27 +504,27 @@ then
 		fi
 		if param compare SYS_COMPANION 921600
 		then
-			mavlink start -d /dev/ttyS2 -b 921600 -m onboard -r 80000 -x
+			# mavlink start -d /dev/ttyS2 -b 921600 -m onboard -r 80000 -x
 		fi
 		if param compare SYS_COMPANION 57600
 		then
-			mavlink start -d /dev/ttyS2 -b 57600 -m onboard -r 5000 -x
+			# mavlink start -d /dev/ttyS2 -b 57600 -m onboard -r 5000 -x
 		fi
 		if param compare SYS_COMPANION 157600
 		then
-			mavlink start -d /dev/ttyS2 -b 57600 -m osd -r 1000
+			# mavlink start -d /dev/ttyS2 -b 57600 -m osd -r 1000
 		fi
 		if param compare SYS_COMPANION 257600
 		then
-			mavlink start -d /dev/ttyS2 -b 57600 -m magic -r 5000 -x
+			# mavlink start -d /dev/ttyS2 -b 57600 -m magic -r 5000 -x
 		fi
 		if param compare SYS_COMPANION 357600
 		then
-			mavlink start -d /dev/ttyS2 -b 57600 -r 1000
+			# mavlink start -d /dev/ttyS2 -b 57600 -r 1000
 		fi
 		if param compare SYS_COMPANION 1921600
 		then
-			mavlink start -d /dev/ttyS2 -b 921600 -r 20000
+			# mavlink start -d /dev/ttyS2 -b 921600 -r 20000
 		fi
 		# Sensors on the PWM interface bank
 		# clear pins 5 and 6
@@ -623,7 +623,7 @@ then
 		then
 			if param compare SYS_LOGGER 0
 			then
-				if sdlog2 start -r 500 -e -b 18 -t
+				if sdlog2 start -r 500 -e -b 35 -t
 				then
 				fi
 			else
