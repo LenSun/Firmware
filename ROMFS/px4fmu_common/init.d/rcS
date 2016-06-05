@@ -634,7 +634,7 @@ then
 		else
 			if param compare SYS_LOGGER 0
 			then
-				if sdlog2 start -r 15 -a -b 35 -t
+				if sdlog2 start -r 15 -e -b 35 -t
 				then
 				fi
 			else
