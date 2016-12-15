@@ -516,3 +516,49 @@ PARAM_DEFINE_FLOAT(MC_TPA_RATE_I, 0.0f);
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_TPA_RATE_D, 0.0f);
+
+/**
+ * Max roll angular acceleration
+ * This should be set initially to va alue that represents the angular acceleration generated about the roll axis
+ * by a roll demand of 25%. Correct setting of this parameter enables higher integrator gains to be used
+ * for improved disturbance rejection without unacceptable overshoots caused by rapid changes in rate demand.
+ * Set this initially to 420/length^2 where length is the distance in metres measured along the Y body axis
+ * from the most left positioned motor to the most right positioned motor.
+ *
+ * @unit deg/s/s
+ * @min 100.0
+ * @max 100000.0
+ * @decimal 0
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_ROLL_DD_MAX, 100000.0f);
+
+/**
+ * Max pitch angular acceleration
+ * This should be set initially to value that represents the angular acceleration generated about the roll axis
+ * by a pitch demand of 25%. Correct setting of this parameter enables higher integrator gains to be used
+ * for improved disturbance rejection without unacceptable overshoots caused by rapid changes in rate demand.
+ * Set this initially to 420/length^2 where length is the distance in metres measured along the X body axis
+ * from the most rear positioned motor to the most front positioned motor.
+ *
+ * @unit deg/s/s
+ * @min 100.0
+ * @max 100000.0
+ * @decimal 0
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_PITCH_DD_MAX, 100000.0f);
+
+/**
+ * Max yaw angular acceleration
+ * This should be set initially to value that represents the angular acceleration generated about the roll axis
+ * by a yaw demand of 25%. Correct setting of this parameter enables higher integrator gains to be used
+ * for improved disturbance rejection without unacceptable overshoots caused by rapid changes in rate demand.
+ *
+ * @unit deg/s/s
+ * @min 10.0
+ * @max 10000.0
+ * @decimal 0
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_YAW_DD_MAX, 10000.0f);

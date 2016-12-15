@@ -237,6 +237,9 @@ private:
 
 		param_t bat_scale_en;
 
+		param_t roll_accel_max;
+		param_t pitch_accel_max;
+		param_t yaw_accel_max;
 	}		_params_handles;		/**< handles for interesting parameters */
 
 	struct {
@@ -258,8 +261,13 @@ private:
 		float roll_rate_max;
 		float pitch_rate_max;
 		float yaw_rate_max;
+
+		float roll_accel_max;
+		float pitch_accel_max;
+		float yaw_accel_max;
 		float yaw_auto_max;
 		math::Vector<3> mc_rate_max;		/**< attitude rate limits in stabilized modes */
+		math::Vector<3> mc_accel_max;		/**< attitude acceleration limit in all modes (rad/s/s) */
 		math::Vector<3> auto_rate_max;		/**< attitude rate limits in auto modes */
 		math::Vector<3> acro_rate_max;		/**< max attitude rates in acro mode */
 		float rattitude_thres;
@@ -409,6 +417,7 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	_params.pitch_rate_max = 0.0f;
 	_params.yaw_rate_max = 0.0f;
 	_params.mc_rate_max.zero();
+	_params.mc_accel_max.zero();
 	_params.auto_rate_max.zero();
 	_params.acro_rate_max.zero();
 	_params.rattitude_thres = 1.0f;
@@ -464,7 +473,9 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	_params_handles.vtol_opt_recovery_enabled	= param_find("VT_OPT_RECOV_EN");
 	_params_handles.vtol_wv_yaw_rate_scale		= param_find("VT_WV_YAWR_SCL");
 	_params_handles.bat_scale_en		= param_find("MC_BAT_SCALE_EN");
-
+	_params_handles.roll_accel_max	= 	param_find("MC_ROLL_DD_MAX");
+	_params_handles.pitch_accel_max	= 	param_find("MC_PITCH_DD_MAX");
+	_params_handles.yaw_accel_max	= 	param_find("MC_YAW_DD_MAX");
 
 
 	/* fetch initial parameter values */
@@ -574,6 +585,14 @@ MulticopterAttitudeControl::parameters_update()
 	_params.mc_rate_max(1) = math::radians(_params.pitch_rate_max);
 	param_get(_params_handles.yaw_rate_max, &_params.yaw_rate_max);
 	_params.mc_rate_max(2) = math::radians(_params.yaw_rate_max);
+
+	/* angular accel limits */
+	param_get(_params_handles.roll_accel_max, &_params.roll_accel_max);
+	_params.mc_accel_max(0) = math::radians(_params.roll_accel_max);
+	param_get(_params_handles.pitch_accel_max, &_params.pitch_accel_max);
+	_params.mc_accel_max(1) = math::radians(_params.pitch_accel_max);
+	param_get(_params_handles.yaw_accel_max, &_params.yaw_accel_max);
+	_params.mc_accel_max(2) = math::radians(_params.yaw_accel_max);
 
 	/* auto angular rate limits */
 	param_get(_params_handles.roll_rate_max, &_params.roll_rate_max);
@@ -872,7 +891,7 @@ MulticopterAttitudeControl::pid_attenuations(float tpa_breakpoint, float tpa_rat
 void
 MulticopterAttitudeControl::control_attitude_rates(float dt)
 {
-	/* reset integral if disarmed */
+	/* zero integrated error if disarmed or rotary wing */
 	if (!_armed.armed || !_vehicle_status.is_rotary_wing) {
 		_rates_int.zero();
 	}
@@ -883,9 +902,29 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 	rates(1) = _ctrl_state.pitch_rate;
 	rates(2) = _ctrl_state.yaw_rate;
 
+	/* reset filter and slew rate limit states when disarmed */
+	if (!_armed.armed) {
+		_rates_sp_prev = _rates_sp;
+		_rates_prev = rates;
+	}
+
 	math::Vector<3> rates_p_scaled = _params.rate_p.emult(pid_attenuations(_params.tpa_breakpoint_p, _params.tpa_rate_p));
 	math::Vector<3> rates_i_scaled = _params.rate_i.emult(pid_attenuations(_params.tpa_breakpoint_i, _params.tpa_rate_i));
 	math::Vector<3> rates_d_scaled = _params.rate_d.emult(pid_attenuations(_params.tpa_breakpoint_d, _params.tpa_rate_d));
+
+	/* apply a slew rate limit to the rate set-point */
+	for (int i = 0; i < 3; i++) {
+		float ang_accel = (_rates_sp(i) - _rates_sp_prev(i)) / dt;
+
+		if (ang_accel > _params.mc_accel_max(i)) {
+			_rates_sp(i) = _rates_sp_prev(i) + _params.mc_accel_max(i) * dt;
+
+		} else if (ang_accel < -_params.mc_accel_max(i)) {
+			_rates_sp(i) = _rates_sp_prev(i) - _params.mc_accel_max(i) * dt;
+		}
+	}
+
+	_rates_sp_prev = _rates_sp;
 
 	/* angular rates error */
 	math::Vector<3> rates_err = _rates_sp - rates;
@@ -895,7 +934,6 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 		       rates_d_scaled.emult(_rates_prev - rates) / dt +
 		       _params.rate_ff.emult(_rates_sp);
 
-	_rates_sp_prev = _rates_sp;
 	_rates_prev = rates;
 
 	/* update integral only if motors are providing enough thrust to be effective */
