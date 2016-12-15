@@ -188,7 +188,7 @@ private:
 	math::Vector<3>		_rates_sp_prev; /**< previous rates setpoint */
 	math::Vector<3>		_rates_deriv;	/**< rate error derivative (rad/s/s) */
 	math::Vector<3>		_rates_sp;		/**< angular rates setpoint */
-	math::Vector<3>		_rates_int;		/**< angular rates integral error */
+	math::Vector<3>		_integ_states;		/**< angular rates integral error */
 	float				_thrust_sp;		/**< thrust setpoint */
 	math::Vector<3>		_att_control;	/**< attitude control vector */
 
@@ -433,7 +433,7 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	_rates_prev.zero();
 	_rates_sp.zero();
 	_rates_sp_prev.zero();
-	_rates_int.zero();
+	_integ_states.zero();
 	_thrust_sp = 0.0f;
 	_att_control.zero();
 
@@ -867,7 +867,7 @@ MulticopterAttitudeControl::control_attitude(float dt)
 		float wv_yaw_rate_max = _params.auto_rate_max(2) * _params.vtol_wv_yaw_rate_scale;
 		_rates_sp(2) = math::constrain(_rates_sp(2), -wv_yaw_rate_max, wv_yaw_rate_max);
 		// prevent integrator winding up in weathervane mode
-		_rates_int(2) = 0.0f;
+		_integ_states(2) = 0.0f;
 	}
 }
 
@@ -902,7 +902,7 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 {
 	/* zero integrated error if disarmed or rotary wing */
 	if (!_armed.armed || !_vehicle_status.is_rotary_wing) {
-		_rates_int.zero();
+		_integ_states.zero();
 	}
 
 	/* current body angular rates */
@@ -946,7 +946,7 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 	_rates_prev = rates;
 
 	_att_control = rates_p_scaled.emult(rates_err) +
-		       _rates_int +
+		       _integ_states + // integrator gain is applied at input side of integrator
 		       rates_d_scaled.emult(_rates_deriv) +
 		       _params.rate_ff.emult(_rates_sp);
 
@@ -978,10 +978,10 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 			}
 
 			// Perform the integration using a first order method and do not propaate the result if out of range or invalid
-			float rate_i = _rates_int(i) + _params.rate_i(i) * rates_err(i) * dt;
+			float integ_state = _integ_states(i) + rates_err(i) * dt * rates_i_scaled(i);
 
-			if (PX4_ISFINITE(rate_i) && rate_i > -_params.rate_int_lim(i) && rate_i < _params.rate_int_lim(i)) {
-				_rates_int(i) = rate_i;
+			if (PX4_ISFINITE(integ_state) && integ_state > -_params.rate_int_lim(i) && integ_state < _params.rate_int_lim(i)) {
+				_integ_states(i) = integ_state;
 
 			}
 		}
@@ -989,7 +989,7 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 
 	/* explicitly limit the integrator state */
 	for (int i = AXIS_INDEX_ROLL; i < AXIS_COUNT; i++) {
-		_rates_int(i) = math::constrain(_rates_int(i), -_params.rate_int_lim(i), _params.rate_int_lim(i));
+		_integ_states(i) = math::constrain(_integ_states(i), -_params.rate_int_lim(i), _params.rate_int_lim(i));
 
 	}
 }
@@ -1171,9 +1171,9 @@ MulticopterAttitudeControl::task_main()
 					}
 				}
 
-				_controller_status.roll_rate_integ = _rates_int(0);
-				_controller_status.pitch_rate_integ = _rates_int(1);
-				_controller_status.yaw_rate_integ = _rates_int(2);
+				_controller_status.roll_rate_integ = _integ_states(0);
+				_controller_status.pitch_rate_integ = _integ_states(1);
+				_controller_status.yaw_rate_integ = _integ_states(2);
 				_controller_status.timestamp = hrt_absolute_time();
 
 				if (!_actuators_0_circuit_breaker_enabled) {
