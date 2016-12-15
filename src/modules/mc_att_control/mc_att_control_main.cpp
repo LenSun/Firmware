@@ -186,6 +186,7 @@ private:
 
 	math::Vector<3>		_rates_prev;	/**< angular rates on previous step */
 	math::Vector<3>		_rates_sp_prev; /**< previous rates setpoint */
+	math::Vector<3>		_rates_deriv;	/**< rate error derivative (rad/s/s) */
 	math::Vector<3>		_rates_sp;		/**< angular rates setpoint */
 	math::Vector<3>		_rates_int;		/**< angular rates integral error */
 	float				_thrust_sp;		/**< thrust setpoint */
@@ -240,6 +241,8 @@ private:
 		param_t roll_accel_max;
 		param_t pitch_accel_max;
 		param_t yaw_accel_max;
+		param_t rate_deriv_lpf;
+
 	}		_params_handles;		/**< handles for interesting parameters */
 
 	struct {
@@ -265,6 +268,8 @@ private:
 		float roll_accel_max;
 		float pitch_accel_max;
 		float yaw_accel_max;
+		float rate_deriv_lpf;
+
 		float yaw_auto_max;
 		math::Vector<3> mc_rate_max;		/**< attitude rate limits in stabilized modes */
 		math::Vector<3> mc_accel_max;		/**< attitude acceleration limit in all modes (rad/s/s) */
@@ -476,6 +481,7 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	_params_handles.roll_accel_max	= 	param_find("MC_ROLL_DD_MAX");
 	_params_handles.pitch_accel_max	= 	param_find("MC_PITCH_DD_MAX");
 	_params_handles.yaw_accel_max	= 	param_find("MC_YAW_DD_MAX");
+	_params_handles.rate_deriv_lpf	= 	param_find("MC_DERIV_LPF");
 
 
 	/* fetch initial parameter values */
@@ -593,6 +599,9 @@ MulticopterAttitudeControl::parameters_update()
 	_params.mc_accel_max(1) = math::radians(_params.pitch_accel_max);
 	param_get(_params_handles.yaw_accel_max, &_params.yaw_accel_max);
 	_params.mc_accel_max(2) = math::radians(_params.yaw_accel_max);
+
+	/* rate derivative LPF */
+	param_get(_params_handles.rate_deriv_lpf, &_params.rate_deriv_lpf);
 
 	/* auto angular rate limits */
 	param_get(_params_handles.roll_rate_max, &_params.roll_rate_max);
@@ -905,6 +914,7 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 	/* reset filter and slew rate limit states when disarmed */
 	if (!_armed.armed) {
 		_rates_sp_prev = _rates_sp;
+		_rates_deriv.zero();
 		_rates_prev = rates;
 	}
 
@@ -929,12 +939,16 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 	/* angular rates error */
 	math::Vector<3> rates_err = _rates_sp - rates;
 
+	/* Calculate a LPF filtered derivative. Note that a linearised approximation to the exponential
+	 * function is used to obtain the filter coefficient from the corner frequency */
+	float alpha_deriv_filt = math::constrain(_params.rate_deriv_lpf * dt, 0.0f, 1.0f);
+	_rates_deriv = ((_rates_prev - rates) / dt) * alpha_deriv_filt + _rates_deriv * (1.0f - alpha_deriv_filt);
+	_rates_prev = rates;
+
 	_att_control = rates_p_scaled.emult(rates_err) +
 		       _rates_int +
-		       rates_d_scaled.emult(_rates_prev - rates) / dt +
+		       rates_d_scaled.emult(_rates_deriv) +
 		       _params.rate_ff.emult(_rates_sp);
-
-	_rates_prev = rates;
 
 	/* update integral only if motors are providing enough thrust to be effective */
 	if (_thrust_sp > MIN_TAKEOFF_THRUST) {

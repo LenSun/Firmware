@@ -562,3 +562,16 @@ PARAM_DEFINE_FLOAT(MC_PITCH_DD_MAX, 100000.0f);
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_YAW_DD_MAX, 10000.0f);
+
+/**
+ * Rate derivative LPF frequency
+ * This sets the corner frequency for the first order LPF that is applied to the rate error derivative.
+ * Reduce the value if gyro noise is limiting the setting of the the derivative gain term.
+ *
+ * @unit rad/sec
+ * @min 100.0
+ * @max 1000.0
+ * @decimal 0
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_DERIV_LPF, 1000.0f);
