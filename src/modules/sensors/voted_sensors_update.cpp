@@ -84,6 +84,7 @@ int VotedSensorsUpdate::init(sensor_combined_s &raw)
 	memset(&_corrections, 0, sizeof(_corrections));
 	memset(&_accel_offset, 0, sizeof(_accel_offset));
 	memset(&_gyro_offset, 0, sizeof(_gyro_offset));
+	memset(&_baro_offset, 0, sizeof(_baro_offset));
 
 	for (unsigned i = 0; i < 3; i++) {
 		_corrections.gyro_scale[i] = 1.0f;
@@ -722,36 +723,53 @@ void VotedSensorsUpdate::baro_poll(struct sensor_combined_s &raw)
 {
 	bool got_update = false;
 
-	for (unsigned i = 0; i < _baro.subscription_count; i++) {
+	for (unsigned uorb_index = 0; uorb_index < _baro.subscription_count; uorb_index++) {
 		bool baro_updated;
-		orb_check(_baro.subscription[i], &baro_updated);
+		orb_check(_baro.subscription[uorb_index], &baro_updated);
 
 		if (baro_updated) {
 			struct baro_report baro_report;
 
-			orb_copy(ORB_ID(sensor_baro), _baro.subscription[i], &baro_report);
+			orb_copy(ORB_ID(sensor_baro), _baro.subscription[uorb_index], &baro_report);
 
 			if (baro_report.timestamp == 0) {
 				continue; //ignore invalid data
 			}
 
+			if (_thermal_correction_param.baro_tc_enable == 1) {
+				// search through the available compensation parameter sets looking for one with a matching sensor ID and correct data if found
+				for (unsigned param_index = 0; param_index < 3; param_index++) {
+					if (baro_report.device_id == _thermal_correction_param.baro_cal_data[param_index].ID) {
+						// get the offsets
+						sensors_temp_comp::calc_thermal_offsets_1D(_thermal_correction_param.baro_cal_data[param_index], baro_report.temperature, _baro_offset[uorb_index]);
+
+						// get the sensor scale factors and correct the data
+						_baro_scale[uorb_index] = _thermal_correction_param.baro_cal_data[param_index].scale;
+						baro_report.pressure = baro_report.pressure * _baro_scale[uorb_index] + _baro_offset[uorb_index];
+
+						break;
+
+					}
+				}
+			}
+
 			// First publication with data
-			if (_baro.priority[i] == 0) {
+			if (_baro.priority[uorb_index] == 0) {
 				int32_t priority = 0;
-				orb_priority(_baro.subscription[i], &priority);
-				_baro.priority[i] = (uint8_t)priority;
+				orb_priority(_baro.subscription[uorb_index], &priority);
+				_baro.priority[uorb_index] = (uint8_t)priority;
 			}
 
 			got_update = true;
 			math::Vector<3> vect(baro_report.altitude, 0.f, 0.f);
 
-			_last_sensor_data[i].baro_alt_meter = baro_report.altitude;
-			_last_sensor_data[i].baro_temp_celcius = baro_report.temperature;
-			_last_baro_pressure[i] = baro_report.pressure;
+			_last_sensor_data[uorb_index].baro_alt_meter = baro_report.altitude;
+			_last_sensor_data[uorb_index].baro_temp_celcius = baro_report.temperature;
+			_last_baro_pressure[uorb_index] = baro_report.pressure;
 
-			_last_baro_timestamp[i] = baro_report.timestamp;
-			_baro.voter.put(i, baro_report.timestamp, vect.data,
-					baro_report.error_count, _baro.priority[i]);
+			_last_baro_timestamp[uorb_index] = baro_report.timestamp;
+			_baro.voter.put(uorb_index, baro_report.timestamp, vect.data,
+					baro_report.error_count, _baro.priority[uorb_index]);
 		}
 	}
 

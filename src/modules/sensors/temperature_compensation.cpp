@@ -109,7 +109,34 @@ int initialize_parameter_handles(ParameterHandles &parameter_handles)
 		parameter_handles.accel_cal_handles[j].max_temp = param_find(nbuf);
 	}
 
-	return PX4_OK;
+	/* barometer calibration parameters */
+	sprintf(nbuf, "TC_B_ENABLE");
+	parameter_handles.baro_tc_enable = param_find(nbuf);
+
+	for (unsigned j = 0; j < 3; j++) {
+		sprintf(nbuf, "TC_B%d_ID", j);
+		parameter_handles.baro_cal_handles[j].ID = param_find(nbuf);
+		sprintf(nbuf, "TC_B%d_X5", j);
+		parameter_handles.baro_cal_handles[j].x5 = param_find(nbuf);
+		sprintf(nbuf, "TC_B%d_X4", j);
+		parameter_handles.baro_cal_handles[j].x4 = param_find(nbuf);
+		sprintf(nbuf, "TC_B%d_X3", j);
+		parameter_handles.baro_cal_handles[j].x3 = param_find(nbuf);
+		sprintf(nbuf, "TC_B%d_X2", j);
+		parameter_handles.baro_cal_handles[j].x2 = param_find(nbuf);
+		sprintf(nbuf, "TC_B%d_X1", j);
+		parameter_handles.baro_cal_handles[j].x1 = param_find(nbuf);
+		sprintf(nbuf, "TC_B%d_X0", j);
+		parameter_handles.baro_cal_handles[j].x0 = param_find(nbuf);
+		sprintf(nbuf, "TC_B%d_SCL", j);
+		parameter_handles.baro_cal_handles[j].scale = param_find(nbuf);
+		sprintf(nbuf, "TC_B%d_TREF", j);
+		parameter_handles.baro_cal_handles[j].ref_temp = param_find(nbuf);
+		sprintf(nbuf, "TC_B%d_TMIN", j);
+		parameter_handles.baro_cal_handles[j].min_temp = param_find(nbuf);
+		sprintf(nbuf, "TC_B%d_TMAX", j);
+		parameter_handles.baro_cal_handles[j].max_temp = param_find(nbuf);
+	}	return PX4_OK;
 }
 
 int update_parameters(const ParameterHandles &parameter_handles, Parameters &parameters)
@@ -178,7 +205,33 @@ int update_parameters(const ParameterHandles &parameter_handles, Parameters &par
 		}
 	}
 
-	return ret;
+	/* barometer calibration parameters */
+	param_get(parameter_handles.baro_tc_enable, &(parameters.baro_tc_enable));
+
+	for (unsigned j = 0; j < 3; j++) {
+		if (param_get(parameter_handles.baro_cal_handles[j].ID, &(parameters.baro_cal_data[j].ID)) == PX4_OK) {
+			param_get(parameter_handles.baro_cal_handles[j].ref_temp, &(parameters.baro_cal_data[j].ref_temp));
+			param_get(parameter_handles.baro_cal_handles[j].min_temp, &(parameters.baro_cal_data[j].min_temp));
+			param_get(parameter_handles.baro_cal_handles[j].min_temp, &(parameters.baro_cal_data[j].min_temp));
+			param_get(parameter_handles.baro_cal_handles[j].x5, &(parameters.baro_cal_data[j].x5));
+			param_get(parameter_handles.baro_cal_handles[j].x4, &(parameters.baro_cal_data[j].x4));
+			param_get(parameter_handles.baro_cal_handles[j].x3, &(parameters.baro_cal_data[j].x3));
+			param_get(parameter_handles.baro_cal_handles[j].x2, &(parameters.baro_cal_data[j].x2));
+			param_get(parameter_handles.baro_cal_handles[j].x1, &(parameters.baro_cal_data[j].x1));
+			param_get(parameter_handles.baro_cal_handles[j].x0, &(parameters.baro_cal_data[j].x0));
+			param_get(parameter_handles.baro_cal_handles[j].scale, &(parameters.baro_cal_data[j].scale));
+
+		} else {
+			// Set all cal values to zero and scale factor to unity
+			memset(&parameters.baro_cal_data[j], 0, sizeof(parameters.baro_cal_data[j]));
+
+			// Set the scale factor to unity
+			parameters.baro_cal_data[j].scale = 1.0f;
+
+			PX4_WARN("FAIL BARO %d CAL PARAM LOAD - USING DEFAULTS", j);
+			ret = PX4_ERROR;
+		}
+	}	return ret;
 }
 
 bool calc_thermal_offsets_1D(struct SENSOR_CAL_DATA_1D &coef, const float &measured_temp, float &offset)

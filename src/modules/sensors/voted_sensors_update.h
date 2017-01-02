@@ -272,6 +272,8 @@ private:
 	float _accel_scale[SENSOR_COUNT_MAX][3]; /**< scale factor corrections to be applied to the raw accel data before offsets are added */
 	float _gyro_offset[SENSOR_COUNT_MAX][3]; /**< offsets to be added to the raw angular rate data after scale factor correction */
 	float _gyro_scale[SENSOR_COUNT_MAX][3]; /**< scale factor corrections to be applied to the raw angular rate data before offsets are added */
+	float _baro_offset[SENSOR_COUNT_MAX]; /**< offsets to be added to the raw baro pressure data after scale factor correction */
+	float _baro_scale[SENSOR_COUNT_MAX]; /**< scale factor corrections to be applied to the raw barp pressure data before offsets are added */
 
 };
 
