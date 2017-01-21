@@ -285,19 +285,17 @@ bool TemperatureCompensation::calc_thermal_offsets_3D(SensorCalData3D &coef, flo
 	float delta_temp;
 
 	if (measured_temp > coef.max_temp) {
-		delta_temp = coef.max_temp;
+		delta_temp = coef.max_temp - coef.ref_temp;
 		ret = false;
 
 	} else if (measured_temp < coef.min_temp) {
-		delta_temp = coef.min_temp;
+		delta_temp = coef.min_temp - coef.ref_temp;
 		ret = false;
 
 	} else {
-		delta_temp = measured_temp;
+		delta_temp = measured_temp - coef.ref_temp;
 
 	}
-
-	delta_temp -= coef.ref_temp;
 
 	// calulate the offsets
 	float delta_temp_2 = delta_temp * delta_temp;
