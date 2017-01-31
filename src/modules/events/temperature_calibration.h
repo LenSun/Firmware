@@ -34,7 +34,11 @@
 #pragma once
 
 
-/** start temperature calibration in a new task
+/** start gyro temperature calibration in a new task
  * @return 0 on success, <0 error otherwise  */
 int run_temperature_calibration();
+
+/** start accel temperature calibration in a new task
+ * @return 0 on success, <0 error otherwise  */
+int run_temperature_accel_calibration();
 

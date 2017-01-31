@@ -39,6 +39,7 @@ px4_add_module(
 	SRCS
 		send_event.cpp
 		temperature_calibration.cpp
+		temperature_accel_calibration.cpp
 	DEPENDS
 		platforms__common
 		modules__uORB

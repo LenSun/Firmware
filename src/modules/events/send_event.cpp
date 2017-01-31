@@ -129,6 +129,14 @@ void SendEvent::process_commands()
 			} else {
 				answer_command(cmd, vehicle_command_s::VEHICLE_CMD_RESULT_FAILED);
 			}
+		} else if  ((int)(cmd.param1) == 3) { //TODO: this needs to be specified in mavlink (and adjust commander accordingly)...
+
+			if (run_temperature_accel_calibration() == 0) {
+				answer_command(cmd, vehicle_command_s::VEHICLE_CMD_RESULT_ACCEPTED);
+
+			} else {
+				answer_command(cmd, vehicle_command_s::VEHICLE_CMD_RESULT_FAILED);
+			}
 		}
 
 		break;
@@ -171,6 +179,7 @@ static void print_usage(const char *reason = nullptr)
 	PX4_INFO("usage: send_event {start_listening|stop_listening|status|temperature_calibration}\n"
 		 "\tstart_listening: start background task to listen to events\n"
 		 "\ttemperature_calibration: start temperature calibration task\n"
+		 "\ttemp_accel_cal: start accelerometer temperature calibration task\n"
 		);
 }
 
@@ -229,6 +238,29 @@ int send_event_main(int argc, char *argv[])
 
 		cmd.command = vehicle_command_s::VEHICLE_CMD_PREFLIGHT_CALIBRATION;
 		cmd.param1 = 2;
+		cmd.param2 = NAN;
+		cmd.param3 = NAN;
+		cmd.param4 = NAN;
+		cmd.param5 = NAN;
+		cmd.param6 = NAN;
+		cmd.param7 = NAN;
+
+		orb_advert_t h = orb_advertise_queue(ORB_ID(vehicle_command), &cmd, vehicle_command_s::ORB_QUEUE_LENGTH);
+		(void)orb_unadvertise(h);
+
+	} else if (!strcmp(argv[1], "temp_accel_cal")) {
+
+		if (!send_event_obj) {
+			PX4_ERR("background task not running");
+			return -1;
+		}
+
+		vehicle_command_s cmd = {};
+		cmd.target_system = -1;
+		cmd.target_component = -1;
+
+		cmd.command = vehicle_command_s::VEHICLE_CMD_PREFLIGHT_CALIBRATION;
+		cmd.param1 = 3;
 		cmd.param2 = NAN;
 		cmd.param3 = NAN;
 		cmd.param4 = NAN;
