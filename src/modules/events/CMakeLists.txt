@@ -40,6 +40,7 @@ px4_add_module(
 		send_event.cpp
 		temperature_calibration.cpp
 		temperature_accel_calibration.cpp
+		temperature_baro_calibration.cpp
 	DEPENDS
 		platforms__common
 		modules__uORB
