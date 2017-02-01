@@ -181,93 +181,93 @@ void Tempcalgyro::task_main()
 			continue;
 		}
 
-		for (unsigned i = 0; i < num_gyro; i++) {
-			if (_hot_soaked[i]) {
+		for (unsigned uorb_index = 0; uorb_index < num_gyro; uorb_index++) {
+			if (_hot_soaked[uorb_index]) {
 				continue;
 			}
 
-			if (fds[i].revents & POLLIN) {
-				orb_copy(ORB_ID(sensor_gyro), gyro_sub[i], &gyro_data);
+			if (fds[uorb_index].revents & POLLIN) {
+				orb_copy(ORB_ID(sensor_gyro), gyro_sub[uorb_index], &gyro_data);
 
-				device_ids[i] = gyro_data.device_id;
+				device_ids[uorb_index] = gyro_data.device_id;
 
-				gyro_sample_filt[i][0] = gyro_data.x;
-				gyro_sample_filt[i][1] = gyro_data.y;
-				gyro_sample_filt[i][2] = gyro_data.z;
-				gyro_sample_filt[i][3] = gyro_data.temperature;
+				gyro_sample_filt[uorb_index][0] = gyro_data.x;
+				gyro_sample_filt[uorb_index][1] = gyro_data.y;
+				gyro_sample_filt[uorb_index][2] = gyro_data.z;
+				gyro_sample_filt[uorb_index][3] = gyro_data.temperature;
 
-				if (!_cold_soaked[i]) {
-					_cold_soaked[i] = true;
-					_low_temp[i] = gyro_sample_filt[i][3];	//Record the low temperature
-					_ref_temp[i] = gyro_sample_filt[i][3] + 12.0f;
+				if (!_cold_soaked[uorb_index]) {
+					_cold_soaked[uorb_index] = true;
+					_low_temp[uorb_index] = gyro_sample_filt[uorb_index][3];	//Record the low temperature
+					_ref_temp[uorb_index] = gyro_sample_filt[uorb_index][3] + 12.0f;
 				}
 
-				num_samples[i]++;
+				num_samples[uorb_index]++;
 			}
 		}
 
-		for (unsigned i = 0; i < num_gyro; i++) {
-			if (_hot_soaked[i]) {
+		for (unsigned sensor_index = 0; sensor_index < num_gyro; sensor_index++) {
+			if (_hot_soaked[sensor_index]) {
 				continue;
 			}
 
-			if (gyro_sample_filt[i][3] > _high_temp[i]) {
-				_high_temp[i] = gyro_sample_filt[i][3];
-				_hot_soak_sat[i] = 0;
+			if (gyro_sample_filt[sensor_index][3] > _high_temp[sensor_index]) {
+				_high_temp[sensor_index] = gyro_sample_filt[sensor_index][3];
+				_hot_soak_sat[sensor_index] = 0;
 
 			} else {
 				continue;
 			}
 
 			//TODO: Hot Soak Saturation
-			if (_hot_soak_sat[i] == 10 || (_high_temp[i] - _low_temp[i]) > 24.0f) {
-				_hot_soaked[i] = true;
+			if (_hot_soak_sat[sensor_index] == 10 || (_high_temp[sensor_index] - _low_temp[sensor_index]) > 24.0f) {
+				_hot_soaked[sensor_index] = true;
 			}
 
-			if (i == 0) {
-				TC_DEBUG("\n%.20f,%.20f,%.20f,%.20f, %.6f, %.6f, %.6f\n\n", (double)gyro_sample_filt[i][0],
-					 (double)gyro_sample_filt[i][1],
-					 (double)gyro_sample_filt[i][2], (double)gyro_sample_filt[i][3], (double)_low_temp[i], (double)_high_temp[i],
-					 (double)(_high_temp[i] - _low_temp[i]));
+			if (sensor_index == 0) {
+				TC_DEBUG("\n%.20f,%.20f,%.20f,%.20f, %.6f, %.6f, %.6f\n\n", (double)gyro_sample_filt[sensor_index][0],
+					 (double)gyro_sample_filt[sensor_index][1],
+					 (double)gyro_sample_filt[sensor_index][2], (double)gyro_sample_filt[sensor_index][3], (double)_low_temp[sensor_index], (double)_high_temp[sensor_index],
+					 (double)(_high_temp[sensor_index] - _low_temp[sensor_index]));
 			}
 
 			//update linear fit matrices
-			gyro_sample_filt[i][3] -= _ref_temp[i];
-			P[i][0].update((double)gyro_sample_filt[i][3], (double)gyro_sample_filt[i][0]);
-			P[i][1].update((double)gyro_sample_filt[i][3], (double)gyro_sample_filt[i][1]);
-			P[i][2].update((double)gyro_sample_filt[i][3], (double)gyro_sample_filt[i][2]);
-			num_samples[i] = 0;
+			gyro_sample_filt[sensor_index][3] -= _ref_temp[sensor_index];
+			P[sensor_index][0].update((double)gyro_sample_filt[sensor_index][3], (double)gyro_sample_filt[sensor_index][0]);
+			P[sensor_index][1].update((double)gyro_sample_filt[sensor_index][3], (double)gyro_sample_filt[sensor_index][1]);
+			P[sensor_index][2].update((double)gyro_sample_filt[sensor_index][3], (double)gyro_sample_filt[sensor_index][2]);
+			num_samples[sensor_index] = 0;
 		}
 
-		for (unsigned i = 0; i < num_gyro; i++) {
-			if (_hot_soaked[i] && !_tempcal_complete[i]) {
+		for (unsigned sensor_index = 0; sensor_index < num_gyro; sensor_index++) {
+			if (_hot_soaked[sensor_index] && !_tempcal_complete[sensor_index]) {
 				double res[3][4] = {0.0f};
-				P[i][0].fit(res[0]);
-				PX4_WARN("Result Gyro %d Axis 0: %.20f %.20f %.20f %.20f", i, (double)res[0][0], (double)res[0][1], (double)res[0][2],
+				P[sensor_index][0].fit(res[0]);
+				PX4_WARN("Result Gyro %d Axis 0: %.20f %.20f %.20f %.20f", sensor_index, (double)res[0][0], (double)res[0][1], (double)res[0][2],
 					 (double)res[0][3]);
-				P[i][1].fit(res[1]);
-				PX4_WARN("Result Gyro %d Axis 1: %.20f %.20f %.20f %.20f", i, (double)res[1][0], (double)res[1][1], (double)res[1][2],
+				P[sensor_index][1].fit(res[1]);
+				PX4_WARN("Result Gyro %d Axis 1: %.20f %.20f %.20f %.20f", sensor_index, (double)res[1][0], (double)res[1][1], (double)res[1][2],
 					 (double)res[1][3]);
-				P[i][2].fit(res[2]);
-				PX4_WARN("Result Gyro %d Axis 2: %.20f %.20f %.20f %.20f", i, (double)res[2][0], (double)res[2][1], (double)res[2][2],
+				P[sensor_index][2].fit(res[2]);
+				PX4_WARN("Result Gyro %d Axis 2: %.20f %.20f %.20f %.20f", sensor_index, (double)res[2][0], (double)res[2][1], (double)res[2][2],
 					 (double)res[2][3]);
-				_tempcal_complete[i] = true;
+				_tempcal_complete[sensor_index] = true;
 
 				char str[30];
 				float param = 0.0f;
 				int result = PX4_OK;
 
-				sprintf(str, "TC_G%d_ID", i);
-				result = param_set(param_find(str), &device_ids[i]);
+				sprintf(str, "TC_G%d_ID", sensor_index);
+				result = param_set(param_find(str), &device_ids[sensor_index]);
 
 				if (result != PX4_OK) {
 					PX4_ERR("unable to reset %s", str);
 				}
 
-				for (unsigned j = 0; j < 3; j++) {
-					for (unsigned m = 0; m <= 3; m++) {
-						sprintf(str, "TC_G%d_X%d_%d", i, (3-m), j);
-						param = (float)res[j][m];
+				for (unsigned axis_index = 0; axis_index < 3; axis_index++) {
+					for (unsigned coef_index = 0; coef_index <= 3; coef_index++) {
+						sprintf(str, "TC_G%d_X%d_%d", sensor_index, (3-coef_index), axis_index);
+						param = (float)res[axis_index][coef_index];
 						result = param_set(param_find(str), &param);
 
 						if (result != PX4_OK) {
@@ -275,24 +275,24 @@ void Tempcalgyro::task_main()
 						}
 					}
 
-					sprintf(str, "TC_G%d_TMAX", i);
-					param = _high_temp[i];
+					sprintf(str, "TC_G%d_TMAX", sensor_index);
+					param = _high_temp[sensor_index];
 					result = param_set(param_find(str), &param);
 
 					if (result != PX4_OK) {
 						PX4_ERR("unable to reset %s", str);
 					}
 
-					sprintf(str, "TC_G%d_TMIN", i);
-					param = _low_temp[i];
+					sprintf(str, "TC_G%d_TMIN", sensor_index);
+					param = _low_temp[sensor_index];
 					result = param_set(param_find(str), &param);
 
 					if (result != PX4_OK) {
 						PX4_ERR("unable to reset %s", str);
 					}
 
-					sprintf(str, "TC_G%d_TREF", i);
-					param = _ref_temp[i];
+					sprintf(str, "TC_G%d_TREF", sensor_index);
+					param = _ref_temp[sensor_index];
 					result = param_set(param_find(str), &param);
 
 					if (result != PX4_OK) {
