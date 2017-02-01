@@ -341,6 +341,14 @@ void Tempcalgyro::task_main()
 			}
 		}
 
+		// Enable use of the thermal compensation
+		sprintf(param_str, "TC_G_ENABLE");
+		int32_t temp_val = 1;
+		param_set_result = param_set(param_find(param_str), &temp_val);
+		if (param_set_result != PX4_OK) {
+			PX4_ERR("unable to reset %s", param_str);
+		}
+
 		// check if all tasks have completed
 		_all_tasks_completed = true;
 		for (unsigned sensor_index = 0; sensor_index < num_gyro; sensor_index++) {
