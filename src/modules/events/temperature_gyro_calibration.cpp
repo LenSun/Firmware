@@ -168,6 +168,44 @@ void Tempcalgyro::task_main()
 	// properly populated
 	sensor_gyro_s gyro_data = {};
 
+	/* reset all driver level calibrations */
+	int param_set_result = PX4_OK;
+	char param_str[30];
+	float offset = 0.0f;
+	float scale = 1.0f;
+	for (unsigned s = 0; s < num_gyro; s++) {
+		(void)sprintf(param_str, "CAL_GYRO%u_XOFF", s);
+		param_set_result = param_set(param_find(param_str), &offset);
+		if (param_set_result != PX4_OK) {
+			PX4_ERR("unable to reset %s", param_str);
+		}
+		(void)sprintf(param_str, "CAL_GYRO%u_YOFF", s);
+		param_set_result = param_set(param_find(param_str), &offset);
+		if (param_set_result != PX4_OK) {
+			PX4_ERR("unable to reset %s", param_str);
+		}
+		(void)sprintf(param_str, "CAL_GYRO%u_ZOFF", s);
+		param_set_result = param_set(param_find(param_str), &offset);
+		if (param_set_result != PX4_OK) {
+			PX4_ERR("unable to reset %s", param_str);
+		}
+		(void)sprintf(param_str, "CAL_GYRO%u_XSCALE", s);
+		param_set_result = param_set(param_find(param_str), &scale);
+		if (param_set_result != PX4_OK) {
+			PX4_ERR("unable to reset %s", param_str);
+		}
+		(void)sprintf(param_str, "CAL_GYRO%u_YSCALE", s);
+		param_set_result = param_set(param_find(param_str), &scale);
+		if (param_set_result != PX4_OK) {
+			PX4_ERR("unable to reset %s", param_str);
+		}
+		(void)sprintf(param_str, "CAL_GYRO%u_ZSCALE", s);
+		param_set_result = param_set(param_find(param_str), &scale);
+		if (param_set_result != PX4_OK) {
+			PX4_ERR("unable to reset %s", param_str);
+		}
+	}
+
 	while (!_force_task_exit && !_all_tasks_completed) {
 		int ret = px4_poll(fds, num_gyro, 1000);
 
