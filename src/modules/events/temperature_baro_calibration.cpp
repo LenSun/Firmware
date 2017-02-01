@@ -54,7 +54,6 @@
 #include <poll.h>
 #include <time.h>
 #include <float.h>
-#include <vector>
 #include <arch/board/board.h>
 #include <systemlib/param/param.h>
 #include <systemlib/err.h>
@@ -122,7 +121,6 @@ public:
 
 private:
 	bool	_force_task_exit = false;
-	bool	_all_tasks_completed = false;
 	int	_control_task = -1;		// task handle for task
 };
 
@@ -143,7 +141,7 @@ void Tempcalbaro::task_main()
 	float baro_sample_filt[SENSOR_COUNT_MAX][2];
 	polyfitter<POLYFIT_ORDER+1> P[SENSOR_COUNT_MAX];
 	px4_pollfd_struct_t fds[SENSOR_COUNT_MAX] = {};
-	unsigned _hot_soak_sat[SENSOR_COUNT_MAX] = {};
+	unsigned hot_soak_sat[SENSOR_COUNT_MAX] = {};
 	unsigned num_baro = orb_group_count(ORB_ID(sensor_baro));
 	unsigned num_samples[SENSOR_COUNT_MAX] = {0};
 	uint32_t device_ids[SENSOR_COUNT_MAX] = {};
@@ -152,12 +150,12 @@ void Tempcalbaro::task_main()
 		num_baro = SENSOR_COUNT_MAX;
 	}
 
-	bool _cold_soaked[SENSOR_COUNT_MAX] = {false};
-	bool _hot_soaked[SENSOR_COUNT_MAX] = {false};
-	bool _tempcal_complete[SENSOR_COUNT_MAX] = {false};
-	float _low_temp[SENSOR_COUNT_MAX];
-	float _high_temp[SENSOR_COUNT_MAX] = {0};
-	float _ref_temp[SENSOR_COUNT_MAX];
+	bool cold_soaked[SENSOR_COUNT_MAX] = {false};
+	bool hot_soaked[SENSOR_COUNT_MAX] = {false};
+	bool tempcal_complete[SENSOR_COUNT_MAX] = {false};
+	float low_temp[SENSOR_COUNT_MAX];
+	float high_temp[SENSOR_COUNT_MAX] = {0};
+	float ref_temp[SENSOR_COUNT_MAX];
 
 	for (unsigned i = 0; i < num_baro; i++) {
 		baro_sub[i] = orb_subscribe_multi(ORB_ID(sensor_baro), i);
@@ -170,10 +168,11 @@ void Tempcalbaro::task_main()
 	// properly populated
 	sensor_baro_s baro_data = {};
 
-	int param_set_result = PX4_OK;
+	int param_set_result;
 	char param_str[30];
+	int num_completed = 0; // number of completed sensors
 
-	while (!_force_task_exit && !_all_tasks_completed) {
+	while (!_force_task_exit) {
 		int ret = px4_poll(fds, num_baro, 1000);
 
 		if (ret < 0) {
@@ -187,7 +186,7 @@ void Tempcalbaro::task_main()
 		}
 
 		for (unsigned uorb_index = 0; uorb_index < num_baro; uorb_index++) {
-			if (_hot_soaked[uorb_index]) {
+			if (hot_soaked[uorb_index]) {
 				continue;
 			}
 
@@ -199,10 +198,10 @@ void Tempcalbaro::task_main()
 				baro_sample_filt[uorb_index][0] = 100.0f * baro_data.pressure; // convert from hPA to Pa
 				baro_sample_filt[uorb_index][1] = baro_data.temperature;
 
-				if (!_cold_soaked[uorb_index]) {
-					_cold_soaked[uorb_index] = true;
-					_low_temp[uorb_index] = baro_sample_filt[uorb_index][1];	//Record the low temperature
-					_ref_temp[uorb_index] = baro_sample_filt[uorb_index][1] + 12.0f;
+				if (!cold_soaked[uorb_index]) {
+					cold_soaked[uorb_index] = true;
+					low_temp[uorb_index] = baro_sample_filt[uorb_index][1];	//Record the low temperature
+					ref_temp[uorb_index] = baro_sample_filt[uorb_index][1] + 12.0f;
 				}
 
 				num_samples[uorb_index]++;
@@ -210,47 +209,48 @@ void Tempcalbaro::task_main()
 		}
 
 		for (unsigned sensor_index = 0; sensor_index < num_baro; sensor_index++) {
-			if (_hot_soaked[sensor_index]) {
+			if (hot_soaked[sensor_index]) {
 				continue;
 			}
 
-			if (baro_sample_filt[sensor_index][1] > _high_temp[sensor_index]) {
-				_high_temp[sensor_index] = baro_sample_filt[sensor_index][1];
-				_hot_soak_sat[sensor_index] = 0;
+			if (baro_sample_filt[sensor_index][1] > high_temp[sensor_index]) {
+				high_temp[sensor_index] = baro_sample_filt[sensor_index][1];
+				hot_soak_sat[sensor_index] = 0;
 
 			} else {
 				continue;
 			}
 
 			//TODO: Hot Soak Saturation
-			if (_hot_soak_sat[sensor_index] == 10 || (_high_temp[sensor_index] - _low_temp[sensor_index]) > 24.0f) {
-				_hot_soaked[sensor_index] = true;
+			if (hot_soak_sat[sensor_index] == 10 || (high_temp[sensor_index] - low_temp[sensor_index]) > 24.0f) {
+				hot_soaked[sensor_index] = true;
 			}
 
 			if (sensor_index == 0) {
 				TC_DEBUG("\n%.20f,%.20f,%.20f,%.20f, %.6f, %.6f, %.6f\n\n", (double)baro_sample_filt[sensor_index][0],
-					 (double)baro_sample_filt[sensor_index][1], (double)_low_temp[sensor_index], (double)_high_temp[sensor_index],
-					 (double)(_high_temp[sensor_index] - _low_temp[sensor_index]));
+					 (double)baro_sample_filt[sensor_index][1], (double)low_temp[sensor_index], (double)high_temp[sensor_index],
+					 (double)(high_temp[sensor_index] - low_temp[sensor_index]));
 			}
 
 			//update linear fit matrices
-			baro_sample_filt[sensor_index][1] -= _ref_temp[sensor_index];
+			baro_sample_filt[sensor_index][1] -= ref_temp[sensor_index];
 			P[sensor_index].update((double)baro_sample_filt[sensor_index][1], (double)baro_sample_filt[sensor_index][0]);
 			num_samples[sensor_index] = 0;
 		}
 
 		for (unsigned sensor_index = 0; sensor_index < num_baro; sensor_index++) {
-			if (_hot_soaked[sensor_index] && !_tempcal_complete[sensor_index]) {
+			if (hot_soaked[sensor_index] && !tempcal_complete[sensor_index]) {
 				double res[POLYFIT_ORDER+1] = {0.0f};
 				P[sensor_index].fit(res);
 				res[POLYFIT_ORDER] = 0.0; // normalise the correction to be zero at the reference temperature by setting the X^0 coefficient to zero
 				PX4_WARN("Result baro %u %.20f %.20f %.20f %.20f %.20f %.20f", sensor_index, (double)res[0], (double)res[1], (double)res[2], (double)res[3], (double)res[4], (double)res[5]);
-				_tempcal_complete[sensor_index] = true;
+				tempcal_complete[sensor_index] = true;
+				++num_completed;
 
 				float param_val = 0.0f;
 
 				sprintf(param_str, "TC_B%d_ID", sensor_index);
-				param_set_result = param_set(param_find(param_str), &device_ids[sensor_index]);
+				param_set_result = param_set_no_notification(param_find(param_str), &device_ids[sensor_index]);
 
 				if (param_set_result != PX4_OK) {
 					PX4_ERR("unable to reset %s", param_str);
@@ -259,7 +259,7 @@ void Tempcalbaro::task_main()
 				for (unsigned coef_index = 0; coef_index <= POLYFIT_ORDER; coef_index++) {
 					sprintf(param_str, "TC_B%d_X%d", sensor_index, (POLYFIT_ORDER - coef_index));
 					param_val = (float)res[coef_index];
-					param_set_result = param_set(param_find(param_str), &param_val);
+					param_set_result = param_set_no_notification(param_find(param_str), &param_val);
 
 					if (param_set_result != PX4_OK) {
 						PX4_ERR("unable to reset %s", param_str);
@@ -267,24 +267,24 @@ void Tempcalbaro::task_main()
 				}
 
 				sprintf(param_str, "TC_B%d_TMAX", sensor_index);
-				param_val = _high_temp[sensor_index];
-				param_set_result = param_set(param_find(param_str), &param_val);
+				param_val = high_temp[sensor_index];
+				param_set_result = param_set_no_notification(param_find(param_str), &param_val);
 
 				if (param_set_result != PX4_OK) {
 					PX4_ERR("unable to reset %s", param_str);
 				}
 
 				sprintf(param_str, "TC_B%d_TMIN", sensor_index);
-				param_val = _low_temp[sensor_index];
-				param_set_result = param_set(param_find(param_str), &param_val);
+				param_val = low_temp[sensor_index];
+				param_set_result = param_set_no_notification(param_find(param_str), &param_val);
 
 				if (param_set_result != PX4_OK) {
 					PX4_ERR("unable to reset %s", param_str);
 				}
 
 				sprintf(param_str, "TC_B%d_TREF", sensor_index);
-				param_val = _ref_temp[sensor_index];
-				param_set_result = param_set(param_find(param_str), &param_val);
+				param_val = ref_temp[sensor_index];
+				param_set_result = param_set_no_notification(param_find(param_str), &param_val);
 
 				if (param_set_result != PX4_OK) {
 					PX4_ERR("unable to reset %s", param_str);
@@ -292,20 +292,18 @@ void Tempcalbaro::task_main()
 			}
 		}
 
-		// Enable use of the thermal compensation
-		sprintf(param_str, "TC_B_ENABLE");
-		int32_t temp_val = 1;
-		param_set_result = param_set(param_find(param_str), &temp_val);
-		if (param_set_result != PX4_OK) {
-			PX4_ERR("unable to reset %s", param_str);
-		}
+		// Check if completed and enable use of the thermal compensation
+		if (num_completed >= num_baro) {
+			sprintf(param_str, "TC_B_ENABLE");
+			int32_t enabled = 1;
+			param_set_result = param_set(param_find(param_str), &enabled);
 
-		// check if all tasks have completed
-		_all_tasks_completed = true;
-		for (unsigned sensor_index = 0; sensor_index < num_baro; sensor_index++) {
-			if (!_tempcal_complete[sensor_index]){
-				_all_tasks_completed = false;
+			if (param_set_result != PX4_OK) {
+				PX4_ERR("unable to reset %s", param_str);
 			}
+
+			break;
+
 		}
 	}
 
