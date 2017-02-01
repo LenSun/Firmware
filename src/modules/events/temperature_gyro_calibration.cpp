@@ -116,10 +116,11 @@ public:
 
 	void print_status();
 
-	void exit() { _task_should_exit = true; }
+	void exit() { _force_task_exit = true; }
 
 private:
-	bool	_task_should_exit = false;
+	bool	_force_task_exit = false;
+	bool	_all_tasks_completed = false;
 	int	_control_task = -1;		// task handle for task
 };
 
@@ -167,7 +168,7 @@ void Tempcalgyro::task_main()
 	// properly populated
 	sensor_gyro_s gyro_data = {};
 
-	while (!_task_should_exit) {
+	while (!_force_task_exit && !_all_tasks_completed) {
 		int ret = px4_poll(fds, num_gyro, 1000);
 
 		if (ret < 0) {
@@ -302,6 +303,13 @@ void Tempcalgyro::task_main()
 			}
 		}
 
+		// check if all tasks have completed
+		_all_tasks_completed = true;
+		for (unsigned sensor_index = 0; sensor_index < num_gyro; sensor_index++) {
+			if (!_tempcal_complete[sensor_index]){
+				_all_tasks_completed = false;
+			}
+		}
 	}
 
 	for (unsigned i = 0; i < num_gyro; i++) {
