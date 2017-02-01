@@ -32,7 +32,7 @@
  ****************************************************************************/
 
 /**
- * @file tempcal_main.cpp
+ * @file temperature_gyro_calibration.cpp
  * Implementation of the Temperature Calibration for onboard sensors.
  *
  * @author Siddharth Bharat Purohit
@@ -79,29 +79,29 @@
 
 #define SENSOR_COUNT_MAX		3
 
-extern "C" __EXPORT int tempcal_main(int argc, char *argv[]);
+extern "C" __EXPORT int tempcalgyro_main(int argc, char *argv[]);
 
 
-class Tempcal;
+class Tempcalgyro;
 
-namespace tempcal
+namespace tempcalgyro
 {
-Tempcal *instance = nullptr;
+Tempcalgyro *instance = nullptr;
 }
 
 
-class Tempcal : public control::SuperBlock
+class Tempcalgyro : public control::SuperBlock
 {
 public:
 	/**
 	 * Constructor
 	 */
-	Tempcal();
+	Tempcalgyro();
 
 	/**
 	 * Destructor, also kills task.
 	 */
-	~Tempcal();
+	~Tempcalgyro();
 
 	/**
 	 * Start task.
@@ -123,17 +123,17 @@ private:
 	int	_control_task = -1;		// task handle for task
 };
 
-Tempcal::Tempcal():
-	SuperBlock(NULL, "Tempcal")
+Tempcalgyro::Tempcalgyro():
+	SuperBlock(NULL, "Tempcalgyro")
 {
 }
 
-Tempcal::~Tempcal()
+Tempcalgyro::~Tempcalgyro()
 {
 
 }
 
-void Tempcal::task_main()
+void Tempcalgyro::task_main()
 {
 	// subscribe to relevant topics
 	int gyro_sub[SENSOR_COUNT_MAX];
@@ -308,17 +308,17 @@ void Tempcal::task_main()
 		orb_unsubscribe(gyro_sub[i]);
 	}
 
-	delete tempcal::instance;
-	tempcal::instance = nullptr;
-	PX4_INFO("Tempcal process stopped");
+	delete tempcalgyro::instance;
+	tempcalgyro::instance = nullptr;
+	PX4_INFO("Tempcalgyro process stopped");
 }
 
-void Tempcal::do_temperature_calibration(int argc, char *argv[])
+void Tempcalgyro::do_temperature_calibration(int argc, char *argv[])
 {
-	tempcal::instance->task_main();
+	tempcalgyro::instance->task_main();
 }
 
-int Tempcal::start()
+int Tempcalgyro::start()
 {
 
 	ASSERT(_control_task == -1);
@@ -326,12 +326,12 @@ int Tempcal::start()
 					   SCHED_DEFAULT,
 					   SCHED_PRIORITY_MAX - 5,
 					   5800,
-					   (px4_main_t)&Tempcal::do_temperature_calibration,
+					   (px4_main_t)&Tempcalgyro::do_temperature_calibration,
 					   nullptr);
 
 	if (_control_task < 0) {
-		delete tempcal::instance;
-		tempcal::instance = nullptr;
+		delete tempcalgyro::instance;
+		tempcalgyro::instance = nullptr;
 		PX4_ERR("start failed");
 		return -errno;
 	}
@@ -339,15 +339,15 @@ int Tempcal::start()
 	return 0;
 }
 
-int run_temperature_calibration()
+int run_temperature_gyro_calibration()
 {
 	PX4_INFO("Starting Temperature calibration task");
-	tempcal::instance = new Tempcal();
+	tempcalgyro::instance = new Tempcalgyro();
 
-	if (tempcal::instance == nullptr) {
+	if (tempcalgyro::instance == nullptr) {
 		PX4_ERR("alloc failed");
 		return 1;
 	}
 
-	return tempcal::instance->start();
+	return tempcalgyro::instance->start();
 }
